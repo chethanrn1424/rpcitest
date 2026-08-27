@@ -1,0 +1,64 @@
+name: rpci-scan
+
+# Runs the scan every weekday at 17:00 IST (= 11:30 UTC) and after any push to main.
+# "workflow_dispatch" lets you also trigger it by hand from the Actions tab.
+on:
+  schedule:
+    - cron: "30 11 * * 1-5"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# Let the job commit data.json and publish Pages.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# If a run is already going, let the newer one win.
+concurrency:
+  group: rpci-scan
+  cancel-in-progress: true
+
+jobs:
+  scan-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas yfinance
+
+      - name: Run the scan (writes data.json)
+        # Start with --limit while testing, then remove it for the full universe.
+        run: python build_scan.py --limit 100
+
+      - name: Commit data.json
+        run: |
+          git config user.name  "rpci-bot"
+          git config user.email "rpci-bot@users.noreply.github.com"
+          git add data.json
+          git commit -m "scan $(date -u +%F)" || echo "no changes to commit"
+          git push
+
+      - name: Upload site for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: scan-and-publish
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
