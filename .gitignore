@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+EQUITY_L.csv
+# data.json is intentionally NOT ignored — the workflow commits it each day.
